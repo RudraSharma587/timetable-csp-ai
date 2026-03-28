@@ -205,3 +205,15 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project-specific ignores
+
+# Logs / temp outputs
+*.log
+
+# Generated plots (optional)
+# Uncomment if you DON'T want to upload plots
+# results/
+
+# OS junk
+Thumbs.db
