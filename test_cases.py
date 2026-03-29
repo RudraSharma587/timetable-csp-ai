@@ -1,31 +1,4 @@
 import math
-"""
-test_cases.py - Test Problem Generators
-
-Generates three difficulty levels of timetable problems:
-
-1. EASY: Small problem that all algorithms can solve quickly
-   - 5-6 courses
-   - 5-6 rooms
-   - 10-12 timeslots
-   - Low constraint density
-   - Expected: All algorithms find solution in <1 second
-
-2. MEDIUM: Moderate problem showing algorithm differences
-   - 10-12 courses
-   - 8-10 rooms
-   - 15-20 timeslots
-   - Medium constraint density
-   - Expected: BFS struggles, IDDFS/A*/Greedy succeed
-
-3. HARD: Large problem exposing scalability limits
-   - 15-20 courses
-   - 10-12 rooms
-   - 20-25 timeslots
-   - High constraint density
-   - Expected: Only A*/Greedy succeed, BFS/IDDFS timeout
-"""
-
 from typing import List
 from timetable import Course, Room, Timeslot, Problem
 
