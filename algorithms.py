@@ -103,10 +103,15 @@ def generate_successors(state: State, problem: Problem) -> List[State]:
     # algorithm rather than random ordering.
     course = min(state.unassigned_courses, key=lambda c: c.id)
     
-    # Get all feasible assignments for this course
+    # Get all feasible assignments for this course, sorted by penalty
+    # (cheapest first). This ordering doesn't affect BFS/IDDFS correctness
+    # (they use FIFO/DFS order anyway), but gives A* and Greedy a much
+    # better shot at reaching deep solutions quickly by preferring low-cost
+    # successors when f-values tie — critical for the hard 32-course problem.
     feasible = ConstraintChecker.get_feasible_assignments(
         state, course, problem.rooms, problem.timeslots
     )
+    feasible.sort(key=lambda x: x[2])  # sort by penalty (index 2)
     
     # Create a successor state for each feasible assignment
     for room, timeslot, penalty in feasible:
@@ -143,9 +148,9 @@ def reconstruct_solution(goal_state: State) -> List[Assignment]:
     return goal_state.assignments
 
 
-
+# ============================================================================
 # BFS (Breadth-First Search)
-
+# ============================================================================
 
 def bfs(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], SearchMetrics]:
     """
@@ -238,9 +243,9 @@ def bfs(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], Sea
     return None, metrics
 
 
-
+# ============================================================================
 # IDDFS (Iterative Deepening Depth-First Search)
-
+# ============================================================================
 
 def depth_limited_dfs(state: State, problem: Problem, depth_limit: int,
                       metrics: SearchMetrics, path_hashes: set) -> Optional[State]:
@@ -372,10 +377,11 @@ def iddfs(problem: Problem, max_depth: int = 50, max_nodes: int = 100000) -> Tup
     print(f"IDDFS: No solution found within depth {max_depth}")
     metrics.stop_timer()
     return None, metrics
-   
 
+
+# ============================================================================
 # A* Search (with MCPLB heuristic)
-
+# ============================================================================
 
 def astar(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], SearchMetrics]:
     """
@@ -408,95 +414,134 @@ def astar(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], S
     """
     metrics = SearchMetrics()
     metrics.start_timer()
-    
+
+    # ----------------------------------------------------------------
+    # Heuristic and weight selection based on problem size.
+    #
+    # For small problems (≤9 courses): use mcplb_optimized (accurate,
+    # full feasibility check) with weight w=1.0 (standard A*).
+    #
+    # For large problems (≥10 courses): standard A* with mcplb_fast
+    # degenerates to near-BFS because the weak heuristic assigns almost
+    # identical h-values to all states at the same depth, causing A* to
+    # exhaust entire f-contour levels (O(b^depth) states) before advancing.
+    # The log shows this clearly: depth stuck at 13, frontier growing by
+    # ~12,000 nodes per 200 expansions for 150k+ iterations.
+    #
+    # Fix: Weighted A* with ε > 1  →  f_w(n) = g(n) + ε·h(n)
+    # This inflates h to break ties in favour of states closer to the
+    # goal, making A* greedier and depth-first in flavour without losing
+    # completeness. The solution found is within ε × C* of optimal.
+    # For D3 this is documented as "A* with ε=1.5 (bounded sub-optimal)".
+    # ----------------------------------------------------------------
+    large_problem_threshold = 10  # courses
+    if len(problem.courses) >= large_problem_threshold:
+        heuristic_fn  = lambda s: Heuristics.mcplb_fast(s, problem)
+        heuristic_name = "MCPLB-Fast"
+        epsilon = 3.0  # weight; solution ≤ ε·C* of optimal
+    else:
+        heuristic_fn  = lambda s: Heuristics.mcplb_optimized(s, problem)
+        heuristic_name = "MCPLB-Optimized"
+        epsilon = 1.0  # standard A*
+
+    # Hard time limit — prevents infinite hang regardless of node count.
+    TIME_LIMIT_SECONDS = 60.0
+
     # Initialize frontier as min-heap (priority queue)
     # Each entry is (f_value, counter, state)
-    # counter breaks ties in f-value (ensures FIFO for equal f)
     frontier = []
     initial_state = problem.get_initial_state()
-    
-    # Compute initial f-value
-    h_initial = Heuristics.mcplb_optimized(initial_state, problem)
-    f_initial = initial_state.g_cost + h_initial
-    
+
+    # Compute initial f-value  (weighted: f = g + ε·h)
+    h_initial = heuristic_fn(initial_state)
+    f_initial = initial_state.g_cost + epsilon * h_initial
+
     counter = 0  # Tie-breaking counter
     heapq.heappush(frontier, (f_initial, counter, initial_state))
     counter += 1
-    
+
     # Closed list: stores expanded states
     closed = set()
-    
-    print("Starting A* Search with MCPLB heuristic...")
+
+    print(f"Starting A* Search with {heuristic_name} heuristic (ε={epsilon})...")
     print(f"Initial state: {len(problem.courses)} courses to assign")
-    print(f"Initial h-value (MCPLB): {h_initial:.2f}")
-    print(f"Initial f-value: {f_initial:.2f}")
+    print(f"Initial h-value ({heuristic_name}): {h_initial:.2f}")
+    print(f"Initial f-value (g + ε·h): {f_initial:.2f}")
+    print(f"Time limit: {TIME_LIMIT_SECONDS:.0f}s | Node limit: {max_nodes:,}")
+    if epsilon > 1.0:
+        print(f"Note: Weighted A* (ε={epsilon}) — solution within {epsilon}× of optimal")
     print()
-    
+
     while frontier:
         # Track frontier size
         if len(frontier) > metrics.max_frontier_size:
             metrics.max_frontier_size = len(frontier)
-        
-        # Safety check
+
+        # Safety check: node limit
         if metrics.nodes_expanded >= max_nodes:
-            print(f"Reached maximum node limit ({max_nodes})")
+            print(f"Reached maximum node limit ({max_nodes:,})")
             metrics.stop_timer()
             return None, metrics
-        
+
+        # Safety check: time limit
+        elapsed = time.time() - metrics.start_time
+        if elapsed >= TIME_LIMIT_SECONDS:
+            print(f"Reached time limit ({TIME_LIMIT_SECONDS:.0f}s) — stopping A*")
+            metrics.stop_timer()
+            return None, metrics
+
         # Pop state with minimum f-value
         f_value, _, current_state = heapq.heappop(frontier)
         metrics.nodes_expanded += 1
-        
+
         # Check if already expanded
         state_hash = hash(current_state)
         if state_hash in closed:
             continue
         closed.add(state_hash)
-        
+
         # Progress update every 200 nodes
         if metrics.nodes_expanded % 200 == 0:
-            h_current = f_value - current_state.g_cost
             print(f"Expanded: {metrics.nodes_expanded}, "
                   f"Frontier: {len(frontier)}, "
                   f"Depth: {current_state.depth()}, "
-                  f"f={f_value:.1f} (g={current_state.g_cost}, h={h_current:.1f})")
-        
+                  f"f={f_value:.1f} (g={current_state.g_cost})")
+
         # Goal test
         if current_state.is_complete():
-            print(f"\n✓ Optimal solution found!")
+            print(f"\n✓ Solution found (Weighted A*, ε={epsilon})!")
             print(f"  Total penalty (g): {current_state.g_cost}")
             print(f"  Final f-value: {f_value:.2f}")
             metrics.solution_cost = current_state.g_cost
             metrics.solution_depth = current_state.depth()
             metrics.stop_timer()
             return current_state, metrics
-        
+
         # Generate successors
         successors = generate_successors(current_state, problem)
         metrics.nodes_generated += len(successors)
-        
-        # Add successors to frontier with f-values
+
+        # Add successors to frontier with weighted f-values
         for successor in successors:
             successor_hash = hash(successor)
             if successor_hash not in closed:
-                h_value = Heuristics.mcplb_optimized(successor, problem)
-                
-                # Check for dead-end state
+                h_value = heuristic_fn(successor)
+
                 if h_value == float('inf'):
-                    continue  # Skip this successor
-                
-                f_value = successor.g_cost + h_value
-                heapq.heappush(frontier, (f_value, counter, successor))
+                    continue  # Dead-end state
+
+                f_w = successor.g_cost + epsilon * h_value
+                heapq.heappush(frontier, (f_w, counter, successor))
                 counter += 1
-    
+
     print("A*: No solution found (frontier exhausted)")
     metrics.stop_timer()
     return None, metrics
 
 
-
+# ============================================================================
 # Greedy Best-First Search (with CVR heuristic)
-
+# ============================================================================
 
 def greedy(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], SearchMetrics]:
     """
@@ -608,5 +653,3 @@ def greedy(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], 
     print("Greedy: No solution found (frontier exhausted)")
     metrics.stop_timer()
     return None, metrics
-
-
