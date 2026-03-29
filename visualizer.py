@@ -5,6 +5,7 @@ Provides visualization and reporting for:
 1. Search metrics comparison (tables and charts)
 2. Solution quality visualization (timetable grids)
 3. Performance analysis
+
 """
 
 import matplotlib.pyplot as plt
