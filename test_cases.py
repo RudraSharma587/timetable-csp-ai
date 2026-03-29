@@ -1,3 +1,4 @@
+import math
 """
 test_cases.py - Test Problem Generators
 
@@ -155,24 +156,24 @@ def generate_hard_problem() -> Problem:
     TOTAL course entries: 59 + 45 + 15 = 119
     -----------------------------------------------------------------------
     Rooms     : 14  (8 lecture halls/classrooms  +  6 LAB rooms)
-    Timeslots : 60  (Mon–Fri 8 slots/day [ids 0–39] + Saturday 20 slots [ids 40–59])
-    Instructors: 16  (Dr.A … Dr.P)
+    Timeslots : 60  (Mon–Fri 10 slots/day [ids 0–49, 08:00–18:00]
+                     + Saturday 10 slots  [ids 50–59, 08:00–18:00])
 
     Timeslot id layout
     ------------------
-      Mon  0– 7  |  Tue  8–15  |  Wed 16–23
-      Thu 24–31  |  Fri 32–39  |  Sat 40–59 (labs only)
+      Mon  0– 9  |  Tue 10–19  |  Wed 20–29
+      Thu 30–39  |  Fri 40–49  |  Sat 50–59 (labs only)
     """
 
     # ------------------------------------------------------------------ #
     # Slot-range shorthands for preferred_times lists                      #
     # ------------------------------------------------------------------ #
-    MON = list(range(0,  8))   #  0– 7
-    TUE = list(range(8,  16))  #  8–15
-    WED = list(range(16, 24))  # 16–23
-    THU = list(range(24, 32))  # 24–31
-    FRI = list(range(32, 40))  # 32–39
-    SAT = list(range(40, 60))  # 40–59
+    MON = list(range(0,  10))   #  0– 9
+    TUE = list(range(10, 20))   # 10–19
+    WED = list(range(20, 30))   # 20–29
+    THU = list(range(30, 40))   # 30–39
+    FRI = list(range(40, 50))   # 40–49
+    SAT = list(range(50, 60))   # 50–59  (labs only, 08:00–18:00)
 
     # ================================================================== #
     # COURSES                                                              #
@@ -180,8 +181,8 @@ def generate_hard_problem() -> Problem:
     courses = [
 
         # ============================================================== #
-        # LECTURE-ONLY  (23 unique courses, 56 section entries)           #
-        # 10 courses × 3 sections = 30 entries                           #
+        # LECTURE-ONLY  (24 unique courses, 59 section entries)           #
+        # 11 courses × 3 sections = 33 entries                           #
         # 13 courses × 2 sections = 26 entries                           #
         # ============================================================== #
 
@@ -199,6 +200,11 @@ def generate_hard_problem() -> Problem:
         Course("CS201-A",  "CS201",  48, "Dr.C", TUE[2:6], False, "A", 1),
         Course("CS201-B",  "CS201",  46, "Dr.C", WED[3:7], False, "B", 1),
         Course("CS201-C",  "CS201",  44, "Dr.C", FRI[3:7], False, "C", 1),
+
+        # --- CS401  (3 sections)  Dr.C  [parent lecture for CSL401 3-hr lab] ---
+        Course("CS401-A",  "CS401",  36, "Dr.C", MON[5:9], False, "A", 1),
+        Course("CS401-B",  "CS401",  34, "Dr.C", WED[5:9], False, "B", 1),
+        Course("CS401-C",  "CS401",  32, "Dr.C", FRI[5:9], False, "C", 1),
 
         # --- MATH101 (3 sections)  Dr.E ---
         Course("MATH101-A","MATH101",72, "Dr.E", MON[1:5], False, "A", 1),
@@ -233,7 +239,7 @@ def generate_hard_problem() -> Problem:
         # --- DS101   (3 sections)  Dr.K ---
         Course("DS101-A",  "DS101",  42, "Dr.K", MON[1:4], False, "A", 1),
         Course("DS101-B",  "DS101",  40, "Dr.K", WED[3:6], False, "B", 1),
-        Course("DS101-C",  "DS101",  38, "Dr.K", FRI[5:8], False, "C", 1),
+        Course("DS101-C",  "DS101",  38, "Dr.K", FRI[5:9], False, "C", 1),
 
         # 13 courses × 2 sections ----------------------------------------
 
@@ -244,11 +250,6 @@ def generate_hard_problem() -> Problem:
         # --- CS301  (2 sections)  Dr.D ---
         Course("CS301-A",  "CS301",  38, "Dr.D", MON[3:7], False, "A", 1),
         Course("CS301-B",  "CS301",  36, "Dr.D", FRI[3:7], False, "B", 1),
-
-        # --- CS401  (3 sections)  Dr.C  [parent lecture for CSL401 3-hr lab] ---
-        Course("CS401-A",  "CS401",  36, "Dr.C", MON[5:8], False, "A", 1),
-        Course("CS401-B",  "CS401",  34, "Dr.C", WED[5:8], False, "B", 1),
-        Course("CS401-C",  "CS401",  32, "Dr.C", FRI[5:8], False, "C", 1),
 
         # --- MATH301 (2 sections)  Dr.F ---
         Course("MATH301-A","MATH301",55, "Dr.F", MON[4:8], False, "A", 1),
@@ -296,111 +297,114 @@ def generate_hard_problem() -> Problem:
 
         # ============================================================== #
         # 2-HOUR LABS  (15 unique × 3 sections = 45 entries)             #
+        # Preferred slots: 2-consecutive ids within same day              #
         # ============================================================== #
 
         # CSL101 — Dr.A
-        Course("CSL101-A","CSL101",32,"Dr.A",[1,2,8,9,17,18],    True,"A",2),
-        Course("CSL101-B","CSL101",30,"Dr.A",[25,26,33,34],       True,"B",2),
-        Course("CSL101-C","CSL101",28,"Dr.A",[41,42,47,48],       True,"C",2),
+        Course("CSL101-A","CSL101",32,"Dr.A", [1,2,11,12,21,22],  True,"A",2),
+        Course("CSL101-B","CSL101",30,"Dr.A", [31,32,41,42],       True,"B",2),
+        Course("CSL101-C","CSL101",28,"Dr.A", [51,52,55,56],       True,"C",2),  # Sat
 
         # CSL102 — Dr.B
-        Course("CSL102-A","CSL102",28,"Dr.B",[3,4,10,11],         True,"A",2),
-        Course("CSL102-B","CSL102",26,"Dr.B",[27,28,35,36],       True,"B",2),
-        Course("CSL102-C","CSL102",24,"Dr.B",[43,44,50,51],       True,"C",2),
+        Course("CSL102-A","CSL102",28,"Dr.B", [3,4,13,14],         True,"A",2),
+        Course("CSL102-B","CSL102",26,"Dr.B", [33,34,43,44],       True,"B",2),
+        Course("CSL102-C","CSL102",24,"Dr.B", [53,54,57,58],       True,"C",2),  # Sat
 
         # CSL201 — Dr.C
-        Course("CSL201-A","CSL201",30,"Dr.C",[9,10,17,18],        True,"A",2),
-        Course("CSL201-B","CSL201",28,"Dr.C",[33,34,41,42],       True,"B",2),
-        Course("CSL201-C","CSL201",26,"Dr.C",[46,47,53,54],       True,"C",2),
+        Course("CSL201-A","CSL201",30,"Dr.C", [11,12,21,22],       True,"A",2),
+        Course("CSL201-B","CSL201",28,"Dr.C", [41,42,50,51],       True,"B",2),
+        Course("CSL201-C","CSL201",26,"Dr.C", [55,56,58,59],       True,"C",2),  # Sat
 
         # CSL202 — Dr.D
-        Course("CSL202-A","CSL202",26,"Dr.D",[19,20,27,28],       True,"A",2),
-        Course("CSL202-B","CSL202",24,"Dr.D",[35,36,40,41],       True,"B",2),
-        Course("CSL202-C","CSL202",22,"Dr.D",[48,49,55,56],       True,"C",2),
+        Course("CSL202-A","CSL202",26,"Dr.D", [23,24,33,34],       True,"A",2),
+        Course("CSL202-B","CSL202",24,"Dr.D", [43,44,50,51],       True,"B",2),
+        Course("CSL202-C","CSL202",22,"Dr.D", [53,54,56,57],       True,"C",2),  # Sat
 
         # MATHL101 — Dr.E
-        Course("MATHL101-A","MATHL101",30,"Dr.E",[5,6,13,14],     True,"A",2),
-        Course("MATHL101-B","MATHL101",28,"Dr.E",[29,30,37,38],   True,"B",2),
-        Course("MATHL101-C","MATHL101",26,"Dr.E",[42,43,49,50],   True,"C",2),
+        Course("MATHL101-A","MATHL101",30,"Dr.E", [5,6,15,16],     True,"A",2),
+        Course("MATHL101-B","MATHL101",28,"Dr.E", [35,36,45,46],   True,"B",2),
+        Course("MATHL101-C","MATHL101",26,"Dr.E", [52,53,57,58],   True,"C",2),  # Sat
 
         # MATHL201 — Dr.F
-        Course("MATHL201-A","MATHL201",28,"Dr.F",[23,24,31,32],   True,"A",2),
-        Course("MATHL201-B","MATHL201",26,"Dr.F",[39,40,44,45],   True,"B",2),
-        Course("MATHL201-C","MATHL201",24,"Dr.F",[51,52,57,58],   True,"C",2),
+        Course("MATHL201-A","MATHL201",28,"Dr.F", [27,28,37,38],   True,"A",2),
+        Course("MATHL201-B","MATHL201",26,"Dr.F", [47,48,50,51],   True,"B",2),
+        Course("MATHL201-C","MATHL201",24,"Dr.F", [54,55,58,59],   True,"C",2),  # Sat
 
         # DSL101 — Dr.K
-        Course("DSL101-A","DSL101",26,"Dr.K",[10,11,18,19],       True,"A",2),
-        Course("DSL101-B","DSL101",24,"Dr.K",[26,27,34,35],       True,"B",2),
-        Course("DSL101-C","DSL101",22,"Dr.K",[44,45,52,53],       True,"C",2),
+        Course("DSL101-A","DSL101",26,"Dr.K", [12,13,22,23],       True,"A",2),
+        Course("DSL101-B","DSL101",24,"Dr.K", [32,33,42,43],       True,"B",2),
+        Course("DSL101-C","DSL101",22,"Dr.K", [53,54,57,58],       True,"C",2),  # Sat
 
         # AML101 — Dr.J
-        Course("AML101-A","AML101",28,"Dr.J",[21,22,29,30],       True,"A",2),
-        Course("AML101-B","AML101",26,"Dr.J",[39,40,45,46],       True,"B",2),
-        Course("AML101-C","AML101",24,"Dr.J",[50,51,56,57],       True,"C",2),
+        Course("AML101-A","AML101",28,"Dr.J", [25,26,35,36],       True,"A",2),
+        Course("AML101-B","AML101",26,"Dr.J", [47,48,52,53],       True,"B",2),
+        Course("AML101-C","AML101",24,"Dr.J", [55,56,58,59],       True,"C",2),  # Sat
 
         # DBL101 — Dr.L
-        Course("DBL101-A","DBL101",30,"Dr.L",[6,7,14,15],         True,"A",2),
-        Course("DBL101-B","DBL101",28,"Dr.L",[30,31,38,39],       True,"B",2),
-        Course("DBL101-C","DBL101",26,"Dr.L",[48,49,56,57],       True,"C",2),
+        Course("DBL101-A","DBL101",30,"Dr.L", [7,8,17,18],         True,"A",2),
+        Course("DBL101-B","DBL101",28,"Dr.L", [37,38,47,48],       True,"B",2),
+        Course("DBL101-C","DBL101",26,"Dr.L", [51,52,56,57],       True,"C",2),  # Sat
 
         # SEL101 — Dr.K
-        Course("SEL101-A","SEL101",26,"Dr.K",[12,13,20,21],       True,"A",2),
-        Course("SEL101-B","SEL101",24,"Dr.K",[28,29,36,37],       True,"B",2),
-        Course("SEL101-C","SEL101",22,"Dr.K",[50,51,58,59],       True,"C",2),
+        Course("SEL101-A","SEL101",26,"Dr.K", [14,15,24,25],       True,"A",2),
+        Course("SEL101-B","SEL101",24,"Dr.K", [34,35,44,45],       True,"B",2),
+        Course("SEL101-C","SEL101",22,"Dr.K", [52,53,57,58],       True,"C",2),  # Sat
 
         # CSL301 — Dr.B
-        Course("CSL301-A","CSL301",28,"Dr.B",[2,3,9,10],          True,"A",2),
-        Course("CSL301-B","CSL301",26,"Dr.B",[34,35,43,44],       True,"B",2),
-        Course("CSL301-C","CSL301",24,"Dr.B",[52,53,58,59],       True,"C",2),
+        Course("CSL301-A","CSL301",28,"Dr.B", [2,3,12,13],         True,"A",2),
+        Course("CSL301-B","CSL301",26,"Dr.B", [42,43,50,51],       True,"B",2),
+        Course("CSL301-C","CSL301",24,"Dr.B", [54,55,58,59],       True,"C",2),  # Sat
 
         # BIOL101L 2-hr component — Dr.M
-        Course("BIOL101L-A","BIOL101L",28,"Dr.M",[17,18,25,26],   True,"A",2),
-        Course("BIOL101L-B","BIOL101L",26,"Dr.M",[41,42,49,50],   True,"B",2),
-        Course("BIOL101L-C","BIOL101L",24,"Dr.M",[54,55,58,59],   True,"C",2),
+        Course("BIOL101L-A","BIOL101L",28,"Dr.M", [20,21,30,31],   True,"A",2),
+        Course("BIOL101L-B","BIOL101L",26,"Dr.M", [50,51,55,56],   True,"B",2),  # Sat
+        Course("BIOL101L-C","BIOL101L",24,"Dr.M", [57,58,53,54],   True,"C",2),  # Sat
 
         # CHEM101L — Dr.N
-        Course("CHEM101L-A","CHEM101L",28,"Dr.N",[7,8,15,16],     True,"A",2),
-        Course("CHEM101L-B","CHEM101L",26,"Dr.N",[31,32,39,40],   True,"B",2),
-        Course("CHEM101L-C","CHEM101L",24,"Dr.N",[45,46,56,57],   True,"C",2),
+        Course("CHEM101L-A","CHEM101L",28,"Dr.N", [8,9,18,19],     True,"A",2),
+        Course("CHEM101L-B","CHEM101L",26,"Dr.N", [38,39,48,49],   True,"B",2),
+        Course("CHEM101L-C","CHEM101L",24,"Dr.N", [50,51,56,57],   True,"C",2),  # Sat
 
         # NET101L — Dr.L
-        Course("NET101L-A","NET101L",26,"Dr.L",[4,5,12,13],       True,"A",2),
-        Course("NET101L-B","NET101L",24,"Dr.L",[28,29,37,38],     True,"B",2),
-        Course("NET101L-C","NET101L",22,"Dr.L",[47,48,54,55],     True,"C",2),
+        Course("NET101L-A","NET101L",26,"Dr.L", [4,5,14,15],       True,"A",2),
+        Course("NET101L-B","NET101L",24,"Dr.L", [34,35,44,45],     True,"B",2),
+        Course("NET101L-C","NET101L",22,"Dr.L", [52,53,55,56],     True,"C",2),  # Sat
 
         # STATL101 — Dr.O
-        Course("STATL101-A","STATL101",26,"Dr.O",[6,7,14,15],     True,"A",2),
-        Course("STATL101-B","STATL101",24,"Dr.O",[32,33,40,41],   True,"B",2),
-        Course("STATL101-C","STATL101",22,"Dr.O",[50,51,57,58],   True,"C",2),
+        Course("STATL101-A","STATL101",26,"Dr.O", [6,7,16,17],     True,"A",2),
+        Course("STATL101-B","STATL101",24,"Dr.O", [36,37,46,47],   True,"B",2),
+        Course("STATL101-C","STATL101",22,"Dr.O", [53,54,57,58],   True,"C",2),  # Sat
 
         # ============================================================== #
-        # 3-HOUR LABS  (5 unique × 3 sections = 15 entries)              #
+        # 3-HOUR LABS  (5 unique × 3 sections = 15 entries)             #
+        # Need 3 consecutive slot ids within same day                    #
+        # Valid SAT 3-hr starts: 50–57  (50+2=52 … 57+2=59 all ≤ 59)   #
         # ============================================================== #
 
         # PHYL101 physics 3-hr lab — Dr.G
-        Course("PHYL101-A","PHYL101",28,"Dr.G",[1,2,8,9],         True,"A",3),
-        Course("PHYL101-B","PHYL101",26,"Dr.G",[33,34,40,41],     True,"B",3),
-        Course("PHYL101-C","PHYL101",24,"Dr.G",[44,45,51,52],     True,"C",3),
+        Course("PHYL101-A","PHYL101",28,"Dr.G", [1,2,11,12],       True,"A",3),
+        Course("PHYL101-B","PHYL101",26,"Dr.G", [41,42,50,51],     True,"B",3),
+        Course("PHYL101-C","PHYL101",24,"Dr.G", [53,54,57],        True,"C",3),  # Sat
 
         # BIOL101 biology 3-hr lab — Dr.M
-        Course("BIOL101-A","BIOL101",28,"Dr.M",[16,17,24,25],     True,"A",3),
-        Course("BIOL101-B","BIOL101",26,"Dr.M",[40,41,47,48],     True,"B",3),
-        Course("BIOL101-C","BIOL101",24,"Dr.M",[53,54,57,58],     True,"C",3),
+        Course("BIOL101-A","BIOL101",28,"Dr.M", [20,21,30,31],     True,"A",3),
+        Course("BIOL101-B","BIOL101",26,"Dr.M", [50,51,55,56],     True,"B",3),  # Sat
+        Course("BIOL101-C","BIOL101",24,"Dr.M", [52,53,57],        True,"C",3),  # Sat
 
         # CHEML101 chemistry 3-hr lab — Dr.N
-        Course("CHEML101-A","CHEML101",26,"Dr.N",[9,10,18,19],    True,"A",3),
-        Course("CHEML101-B","CHEML101",24,"Dr.N",[34,35,43,44],   True,"B",3),
-        Course("CHEML101-C","CHEML101",22,"Dr.N",[48,49,55,56],   True,"C",3),
+        Course("CHEML101-A","CHEML101",26,"Dr.N", [11,12,21,22],   True,"A",3),
+        Course("CHEML101-B","CHEML101",24,"Dr.N", [42,43,50,51],   True,"B",3),
+        Course("CHEML101-C","CHEML101",22,"Dr.N", [54,55,57],      True,"C",3),  # Sat
 
         # CSL401 advanced CS 3-hr lab — Dr.C
-        Course("CSL401-A","CSL401",24,"Dr.C",[22,23,30,31],       True,"A",3),
-        Course("CSL401-B","CSL401",22,"Dr.C",[37,38,40,41],       True,"B",3),
-        Course("CSL401-C","CSL401",20,"Dr.C",[51,52,57,58],       True,"C",3),
+        Course("CSL401-A","CSL401",24,"Dr.C", [26,27,36,37],       True,"A",3),
+        Course("CSL401-B","CSL401",22,"Dr.C", [46,47,50,51],       True,"B",3),
+        Course("CSL401-C","CSL401",20,"Dr.C", [53,54,56,57],       True,"C",3),  # Sat
 
         # PHYL201 advanced physics 3-hr lab — Dr.P
-        Course("PHYL201-A","PHYL201",26,"Dr.P",[5,6,13,14],       True,"A",3),
-        Course("PHYL201-B","PHYL201",24,"Dr.P",[29,30,37,38],     True,"B",3),
-        Course("PHYL201-C","PHYL201",22,"Dr.P",[46,47,53,54],     True,"C",3),
+        Course("PHYL201-A","PHYL201",26,"Dr.P", [5,6,15,16],       True,"A",3),
+        Course("PHYL201-B","PHYL201",24,"Dr.P", [35,36,45,46],     True,"B",3),
+        Course("PHYL201-C","PHYL201",22,"Dr.P", [51,52,56,57],     True,"C",3),  # Sat
     ]
 
     # ------------------------------------------------------------------ #
@@ -425,14 +429,14 @@ def generate_hard_problem() -> Problem:
 
     # ------------------------------------------------------------------ #
     # TIMESLOTS                                                            #
-    #   Mon–Fri : ids  0–39  (8 slots/day × 5 days, 08:00–16:00)        #
-    #   Saturday: ids 40–59  (20 slots, 08:00–20:00, labs only)          #
+    #   Mon–Fri : ids  0–49  (10 slots/day × 5 days, 08:00–18:00)       #
+    #   Saturday: ids 50–59  (10 slots, 08:00–18:00, labs only)          #
     # ------------------------------------------------------------------ #
     timeslots = []
     slot_id = 0
 
     weekday_times = [
-        ("08:00", "09:00", True),
+        ("08:00", "09:00", True),   # is_early
         ("09:00", "10:00", False),
         ("10:00", "11:00", False),
         ("11:00", "12:00", False),
@@ -440,6 +444,8 @@ def generate_hard_problem() -> Problem:
         ("13:00", "14:00", False),
         ("14:00", "15:00", False),
         ("15:00", "16:00", False),
+        ("16:00", "17:00", False),
+        ("17:00", "18:00", False),
     ]
 
     for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]:
@@ -447,6 +453,7 @@ def generate_hard_problem() -> Problem:
             timeslots.append(Timeslot(slot_id, day, start, end, is_early))
             slot_id += 1
 
+    # Saturday: 10 slots (08:00–18:00), labs only
     saturday_times = [
         ("08:00", "09:00", True),
         ("09:00", "10:00", False),
@@ -458,22 +465,13 @@ def generate_hard_problem() -> Problem:
         ("15:00", "16:00", False),
         ("16:00", "17:00", False),
         ("17:00", "18:00", False),
-        ("18:00", "19:00", False),
-        ("19:00", "20:00", False),
-        ("20:00", "21:00", False),
-        ("21:00", "22:00", False),
-        ("22:00", "23:00", False),
-        ("23:00", "23:59", False),
-        ("05:00", "06:00", False),
-        ("05:30", "06:30", False),
-        ("06:00", "07:00", False),
-        ("06:30", "07:00", False),
     ]
     for start, end, is_early in saturday_times:
         timeslots.append(Timeslot(slot_id, "Saturday", start, end, is_early))
         slot_id += 1
 
     return Problem(courses, rooms, timeslots)
+
 def print_problem_summary(problem: Problem, difficulty: str):
     """
     Print a summary of the problem characteristics.
@@ -482,8 +480,6 @@ def print_problem_summary(problem: Problem, difficulty: str):
         problem: Problem instance
         difficulty: "EASY", "MEDIUM", or "HARD"
     """
-    import math
-
     print(f"\n{'='*60}")
     print(f"{difficulty} Problem Summary")
     print(f"{'='*60}")
@@ -491,14 +487,14 @@ def print_problem_summary(problem: Problem, difficulty: str):
     print(f"Rooms: {len(problem.rooms)}")
     print(f"Timeslots: {len(problem.timeslots)}")
     print(f"Domain size per course: {len(problem.rooms)} × {len(problem.timeslots)} = {len(problem.rooms) * len(problem.timeslots)}")
-
-    # ✅ FIXED overflow-safe calculation
-    base = len(problem.rooms) * len(problem.timeslots)
-    exp = len(problem.courses)
-    log10_val = exp * math.log10(base)
-
-    print(f"Total possible assignments: ~1e{int(log10_val)}")
-
+    # Use log10 to safely format astronomically large numbers without float overflow
+    _domain = len(problem.rooms) * len(problem.timeslots)
+    _n      = len(problem.courses)
+    _log    = _n * math.log10(_domain)
+    _mant   = 10 ** (_log % 1)
+    _exp    = int(_log)
+    print(f"Total possible assignments: {_mant:.2f}e+{_exp}")
+    
     # Count instructor conflicts
     instructor_counts = {}
     for course in problem.courses:
@@ -514,6 +510,18 @@ def print_problem_summary(problem: Problem, difficulty: str):
     print(f"Course enrollments: {course_enrollments[0]} - {course_enrollments[-1]}")
     
     # Estimate branching factor
-    avg_feasible = (len(problem.rooms) * len(problem.timeslots)) * 0.6
+    avg_feasible = (len(problem.rooms) * len(problem.timeslots)) * 0.6  # Rough estimate
     print(f"Estimated avg branching factor: ~{avg_feasible:.0f}")
     print(f"{'='*60}\n")
+
+
+if __name__ == "__main__":
+    # Test all problem generators
+    easy = generate_easy_problem()
+    print_problem_summary(easy, "EASY")
+    
+    medium = generate_medium_problem()
+    print_problem_summary(medium, "MEDIUM")
+    
+    hard = generate_hard_problem()
+    print_problem_summary(hard, "HARD")
