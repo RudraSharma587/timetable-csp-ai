@@ -372,6 +372,241 @@ def iddfs(problem: Problem, max_depth: int = 50, max_nodes: int = 100000) -> Tup
     print(f"IDDFS: No solution found within depth {max_depth}")
     metrics.stop_timer()
     return None, metrics
+   
 
+# A* Search (with MCPLB heuristic)
+
+
+def astar(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], SearchMetrics]:
+    """
+    A* Search for timetable CSP using MCPLB heuristic.
+    
+    Algorithm:
+    1. Initialize frontier as priority queue with initial state
+    2. Loop:
+       a. If frontier empty, return failure
+       b. Pop state with minimum f(n) = g(n) + h(n)
+       c. If state is complete, return it as solution
+       d. Generate successors, compute f-values, add to priority queue
+    
+    f(n) = g(n) + h(n) where:
+    - g(n) = accumulated penalty cost so far
+    - h(n) = MCPLB (estimated minimum remaining penalty)
+    
+    Properties:
+    - Complete: Yes (if solution exists)
+    - Optimal: Yes (MCPLB is admissible)
+    - Time: O(b^d) worst case, but often much better with good heuristic
+    - Space: O(b^d) - stores frontier
+    
+    Args:
+        problem: Timetable problem instance
+        max_nodes: Maximum nodes to expand (safety limit)
+    
+    Returns:
+        Tuple of (solution_state, metrics)
+    """
+    metrics = SearchMetrics()
+    metrics.start_timer()
+    
+    # Initialize frontier as min-heap (priority queue)
+    # Each entry is (f_value, counter, state)
+    # counter breaks ties in f-value (ensures FIFO for equal f)
+    frontier = []
+    initial_state = problem.get_initial_state()
+    
+    # Compute initial f-value
+    h_initial = Heuristics.mcplb_optimized(initial_state, problem)
+    f_initial = initial_state.g_cost + h_initial
+    
+    counter = 0  # Tie-breaking counter
+    heapq.heappush(frontier, (f_initial, counter, initial_state))
+    counter += 1
+    
+    # Closed list: stores expanded states
+    closed = set()
+    
+    print("Starting A* Search with MCPLB heuristic...")
+    print(f"Initial state: {len(problem.courses)} courses to assign")
+    print(f"Initial h-value (MCPLB): {h_initial:.2f}")
+    print(f"Initial f-value: {f_initial:.2f}")
+    print()
+    
+    while frontier:
+        # Track frontier size
+        if len(frontier) > metrics.max_frontier_size:
+            metrics.max_frontier_size = len(frontier)
+        
+        # Safety check
+        if metrics.nodes_expanded >= max_nodes:
+            print(f"Reached maximum node limit ({max_nodes})")
+            metrics.stop_timer()
+            return None, metrics
+        
+        # Pop state with minimum f-value
+        f_value, _, current_state = heapq.heappop(frontier)
+        metrics.nodes_expanded += 1
+        
+        # Check if already expanded
+        state_hash = hash(current_state)
+        if state_hash in closed:
+            continue
+        closed.add(state_hash)
+        
+        # Progress update every 200 nodes
+        if metrics.nodes_expanded % 200 == 0:
+            h_current = f_value - current_state.g_cost
+            print(f"Expanded: {metrics.nodes_expanded}, "
+                  f"Frontier: {len(frontier)}, "
+                  f"Depth: {current_state.depth()}, "
+                  f"f={f_value:.1f} (g={current_state.g_cost}, h={h_current:.1f})")
+        
+        # Goal test
+        if current_state.is_complete():
+            print(f"\n✓ Optimal solution found!")
+            print(f"  Total penalty (g): {current_state.g_cost}")
+            print(f"  Final f-value: {f_value:.2f}")
+            metrics.solution_cost = current_state.g_cost
+            metrics.solution_depth = current_state.depth()
+            metrics.stop_timer()
+            return current_state, metrics
+        
+        # Generate successors
+        successors = generate_successors(current_state, problem)
+        metrics.nodes_generated += len(successors)
+        
+        # Add successors to frontier with f-values
+        for successor in successors:
+            successor_hash = hash(successor)
+            if successor_hash not in closed:
+                h_value = Heuristics.mcplb_optimized(successor, problem)
+                
+                # Check for dead-end state
+                if h_value == float('inf'):
+                    continue  # Skip this successor
+                
+                f_value = successor.g_cost + h_value
+                heapq.heappush(frontier, (f_value, counter, successor))
+                counter += 1
+    
+    print("A*: No solution found (frontier exhausted)")
+    metrics.stop_timer()
+    return None, metrics
+
+
+
+# Greedy Best-First Search (with CVR heuristic)
+
+
+def greedy(problem: Problem, max_nodes: int = 100000) -> Tuple[Optional[State], SearchMetrics]:
+    """
+    Greedy Best-First Search for timetable CSP using CVR heuristic.
+    
+    Algorithm:
+    1. Initialize frontier as priority queue with initial state
+    2. Loop:
+       a. If frontier empty, return failure
+       b. Pop state with minimum h(n) (CVR)
+       c. If state is complete and valid, return it
+       d. Generate successors, compute h-values, add to priority queue
+    
+    h(n) = CVR (constraint violation ratio)
+    Note: Greedy ignores g(n) cost - only looks at h(n)
+    
+    Properties:
+    - Complete: Yes in finite spaces with cycle detection
+    - Optimal: NO - can return suboptimal solutions
+    - Time: O(b^m) worst case, often much faster in practice
+    - Space: O(b^m) worst case
+    
+    Args:
+        problem: Timetable problem instance
+        max_nodes: Maximum nodes to expand (safety limit)
+    
+    Returns:
+        Tuple of (solution_state, metrics)
+    """
+    metrics = SearchMetrics()
+    metrics.start_timer()
+    
+    # Initialize frontier as min-heap
+    frontier = []
+    initial_state = problem.get_initial_state()
+    
+    h_initial = Heuristics.cvr(initial_state, len(problem.courses))
+    
+    counter = 0
+    heapq.heappush(frontier, (h_initial, counter, initial_state))
+    counter += 1
+    
+    # Closed list
+    closed = set()
+    
+    print("Starting Greedy Best-First Search with CVR heuristic...")
+    print(f"Initial state: {len(problem.courses)} courses to assign")
+    print(f"Initial h-value (CVR): {h_initial:.4f}")
+    print()
+    
+    while frontier:
+        # Track frontier size
+        if len(frontier) > metrics.max_frontier_size:
+            metrics.max_frontier_size = len(frontier)
+        
+        # Safety check
+        if metrics.nodes_expanded >= max_nodes:
+            print(f"Reached maximum node limit ({max_nodes})")
+            metrics.stop_timer()
+            return None, metrics
+        
+        # Pop state with minimum h-value
+        h_value, _, current_state = heapq.heappop(frontier)
+        metrics.nodes_expanded += 1
+        
+        # Check if already expanded
+        state_hash = hash(current_state)
+        if state_hash in closed:
+            continue
+        closed.add(state_hash)
+        
+        # Progress update every 200 nodes
+        if metrics.nodes_expanded % 200 == 0:
+            print(f"Expanded: {metrics.nodes_expanded}, "
+                  f"Frontier: {len(frontier)}, "
+                  f"Depth: {current_state.depth()}, "
+                  f"h(CVR)={h_value:.4f}, "
+                  f"g(penalty)={current_state.g_cost}")
+        
+        # Goal test
+        if current_state.is_complete():
+            # Check if solution is valid
+            if ConstraintChecker.is_valid_complete_timetable(current_state):
+                print(f"\n✓ Solution found!")
+                print(f"  Total penalty (g): {current_state.g_cost}")
+                print(f"  Final CVR: {h_value:.4f}")
+                print(f"  Note: Solution may not be optimal (Greedy is not optimal)")
+                metrics.solution_cost = current_state.g_cost
+                metrics.solution_depth = current_state.depth()
+                metrics.stop_timer()
+                return current_state, metrics
+            else:
+                # Complete but invalid - skip it
+                print(f"  Found complete but invalid timetable (CVR={h_value:.4f})")
+                continue
+        
+        # Generate successors
+        successors = generate_successors(current_state, problem)
+        metrics.nodes_generated += len(successors)
+        
+        # Add successors to frontier with h-values
+        for successor in successors:
+            successor_hash = hash(successor)
+            if successor_hash not in closed:
+                h_value = Heuristics.cvr(successor, len(problem.courses))
+                heapq.heappush(frontier, (h_value, counter, successor))
+                counter += 1
+    
+    print("Greedy: No solution found (frontier exhausted)")
+    metrics.stop_timer()
+    return None, metrics
 
 
