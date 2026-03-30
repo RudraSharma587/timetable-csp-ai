@@ -1,4 +1,6 @@
 import math
+
+
 from typing import List
 from timetable import Course, Room, Timeslot, Problem
 
@@ -483,7 +485,7 @@ def print_problem_summary(problem: Problem, difficulty: str):
     print(f"Course enrollments: {course_enrollments[0]} - {course_enrollments[-1]}")
     
     # Estimate branching factor
-    avg_feasible = (len(problem.rooms) * len(problem.timeslots)) * 0.6  # Rough estimate
+    avg_feasible = len(problem.rooms) * len(problem.timeslots)
     print(f"Estimated avg branching factor: ~{avg_feasible:.0f}")
     print(f"{'='*60}\n")
 
