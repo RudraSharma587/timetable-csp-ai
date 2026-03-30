@@ -12,13 +12,14 @@ Usage:
 """
 
 import argparse
+import math
 import sys
 from typing import Dict, Tuple, Optional
 
 from timetable import Problem, State
 from algorithms import bfs, iddfs, astar, greedy, SearchMetrics
 from test_cases import generate_easy_problem, generate_medium_problem, generate_hard_problem, print_problem_summary
-from visualizer import print_metrics_comparison, generate_report
+from visualizer import print_metrics_comparison, generate_report, plot_timetable_grid
 
 
 def run_algorithm(algo_name: str, algo_func, problem: Problem, 
@@ -124,6 +125,15 @@ def run_experiment(problem: Problem, difficulty: str,
         node_limit = algo_limits.get(algo_name, 50000)
         solution, metrics = run_algorithm(algo_name, algo_func, problem, node_limit)
         results[algo_name] = (solution, metrics)
+
+        # Visualize timetable immediately after each algorithm if solution found
+        if solution is not None:
+            import os
+            os.makedirs("./results", exist_ok=True)
+            safe_name = algo_name.lower().replace("*", "star").replace(" ", "_")
+            out_path = f"./results/{difficulty.lower()}_timetable_{safe_name}.png"
+            print(f"  [Visualizer] Saving timetable for {algo_name} → {out_path}")
+            plot_timetable_grid(solution, problem, save_path=out_path)
     
     # Print comparison
     print("\n" + "="*80)
@@ -151,7 +161,7 @@ def compare_with_d2_predictions(results: Dict[str, Tuple], problem: Problem, dif
     print(f"{'='*80}\n")
     
     n = len(problem.courses)
-    b_estimate = 30  # From D2 analysis
+    b_estimate = len(problem.rooms) * len(problem.timeslots)
     
     print(f"Problem Parameters:")
     print(f"  n (courses) = {n}")
@@ -182,10 +192,17 @@ def compare_with_d2_predictions(results: Dict[str, Tuple], problem: Problem, dif
             # Compare with predictions
             if algo_name in ("BFS", "IDDFS"):
                 match = "Better" if metrics.nodes_expanded < 1000000 else "Expected"
+                
             elif algo_name == "A*":
-                match = "✓ Good" if metrics.nodes_expanded < (b_estimate ** n) / 1000 else "Worse"
+                log_b_n = n * math.log10(b_estimate)
+                log_nodes = math.log10(max(metrics.nodes_expanded, 1))
+                match = "✓ Good" if log_nodes < (log_b_n - 3) else "Worse"
+
             elif algo_name == "Greedy":
-                match = "✓ Good" if metrics.nodes_expanded < (b_estimate ** (n // 2)) else "Expected"
+                log_b_half = (n // 2) * math.log10(b_estimate)
+                log_nodes = math.log10(max(metrics.nodes_expanded, 1))
+                match = "✓ Good" if log_nodes < log_b_half else "Expected"
+
             else:
                 match = "?"
 
