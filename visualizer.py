@@ -5,7 +5,6 @@ Provides visualization and reporting for:
 1. Search metrics comparison (tables and charts)
 2. Solution quality visualization (timetable grids)
 3. Performance analysis
-
 """
 
 import matplotlib.pyplot as plt
@@ -175,6 +174,7 @@ def plot_metrics_comparison(results: Dict[str, tuple], save_path: str = None):
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
         print(f"Plot saved to {save_path}")
     else:
         plt.show()
@@ -291,6 +291,7 @@ def plot_timetable_grid(state: State, problem: Problem, save_path: str = None):
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.close()
         print(f"Timetable visualization saved to {save_path}")
     else:
         plt.show()
